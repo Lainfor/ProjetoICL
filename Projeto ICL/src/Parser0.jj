@@ -1,0 +1,210 @@
+PARSER_BEGIN(Parser)
+/** ID lister. */
+
+import java.util.ArrayList;
+
+public class Parser
+{
+  /** Main entry point. */
+  public static void main(String args [])
+  {
+    Compiler c = new Compiler();
+    Environment e = new EnviromentImp();
+    ArrayList<String> list = new ArrayList<String>();
+    list.add(".class public Main");
+    list.add(".super java/lang/Object");
+    list.add("");
+    list.add(".method public <init>()V");
+    list.add("  aload_0");
+    list.add("  invokenonvirtual java/lang/Object/<init>()V");
+    list.add("  return");
+    list.add(".end method");
+    list.add("");
+    list.add(".method public static main([Ljava/lang/String;)V");
+    list.add("	.limit locals 10");
+    list.add("	.limit stack 256");
+    list.add("	getstatic java/lang/System/out Ljava/io/PrintStream;");
+    list.add("	");
+    list.add("	aconst_null");
+    list.add("	astore 4");
+    Parser parser = new Parser(System.in);
+    ASTNode exp;
+    while (true)
+    {
+      try
+      {
+        exp = parser.Start();
+        System.out.println(exp.eval(e));
+        exp.compile(e, list);
+        list.add("");
+        list.add("	return");
+        list.add(".end method");
+        c.printFile(list);
+      }
+      catch (Exception ex)
+      {
+        System.out.println("Syntax Error!");
+        parser.ReInit(System.in);
+      }
+    }
+  }
+}
+
+PARSER_END(Parser)
+
+SKIP :
+{
+  " "
+| "\t"
+| "\r"
+}
+
+TOKEN :
+{
+  < LET : "let" >
+| 
+  < IN : "in" >
+| 
+  < END : "end" >
+| 
+  < Id : [ "a"-"z", "A"-"Z" ] ([ "a"-"z", "A"-"Z", "0"-"9" ])* >
+| 
+  < Num : ([ "0"-"9" ])+ >
+| 
+  < BODY : [ "a"-"z", "A"-"Z" ] ([ "a"-"z", "A"-"Z", "0"-"9" ])* >
+| 
+  < EQUAL : "=" >
+| 
+  < PLUS : "+" >
+| 
+  < MINUS : "-" >
+| 
+  < TIMES : "*" >
+| 
+  < DIV : "/" >
+| 
+  < LPAR : "(" >
+| 
+  < RPAR : ")" >
+| 
+  < EL : "\n" >
+}
+/*
+TOKEN: {
+< LET : "let" >
+| 
+< IN : "in" >
+| 
+< END : "end" >
+} */
+
+ASTNode Start() :
+{
+  ASTNode t;
+}
+{
+  t = Exp() < EL >
+  {
+    return t;
+  }
+}
+
+ASTNode Exp() :
+{
+  Token op;
+  ASTNode t1, t2;
+}
+{
+  t1 = Term()
+  (
+    ( op = < PLUS >| op = < MINUS >)
+    t2 = Term()
+    {
+      if (op.kind == PLUS) 
+      		t1 = new ASTPlus(t1, t2);
+      else t1 = new ASTSub(t1, t2);
+    }
+  )*
+  {
+    return t1;
+  }
+}
+
+ASTNode Term() :
+{
+  Token op;
+  ASTNode t1, t2;
+}
+{
+  t1 = Fact()
+  (
+    ( op = < TIMES > | op = < DIV >)
+    t2 = Term()
+    {
+      if (op.kind == TIMES) 
+      		t1 = new ASTTimes(t1, t2);
+      else t1 = new ASTDiv(t1, t2);
+    }
+  )*
+  {
+    return t1;
+  }
+}
+/*
+ASTNode Let() :
+{
+  Token id, val, b;
+  ASTNode t, aux, valNode, bNode;
+}
+{
+  id=<Id><EQUAL>val=<Num> <IN> b=<BODY> <END>
+  { valNode = new ASTNum(Integer.parseInt(val.image));
+  	bNode = new ASTCode(b.image);
+  	aux = new ASTLet(id.image, valNode, bNode);
+  }
+  {
+    return aux;
+  }
+  //<LET> id=<Id> <EQUAL> val=<Num> <IN> b=<BODY> { t = new ASTLet(id.image, new ASTNum(Integer.parseInt(val.image)), new ASTCode(b.image)); }
+}
+*/
+
+/*
+ASTNode Fact() :
+{ Token n;
+  Token id;
+  //Token body;
+  //Token number;
+  ASTNode t, t1, t2;
+}
+{
+   
+   ( n=<Num> { t = new ASTNum(Integer.parseInt(n.image)); }
+   
+   | <LET> id=<Id> <EQ> t1=Exp() <IN> t2=Exp() <END> { t = new ASTLet(id.image, t1, t2); }
+   | n=<Id>  { t = new ASTId(n.image); }
+   | <LPAR> t=Exp() <RPAR>
+   | < MINUS > n=<Num> { t = new ASTNum(-Integer.parseInt( n.image )); }
+   //| (<LET> id=<Id> <EQ> number = < Num > <IN> body = < BODY > <END>) { t = new ASTLet(id.image, new ASTNum(Integer.parseInt( number.image )), new ASTCode(body.image)); } 
+   //| (<LET> id=<Id> <EQ> t1=Exp() <IN> t2 = Exp() <END>) { t = new ASTLet(id.image, t1, t2); }  
+   )
+ { return t; }
+}
+*/
+ASTNode Fact() :
+{
+  Token n, id;
+  ASTNode t, t1, t2;
+}
+{
+  ( n = <Num>{ t = new ASTNum(Integer.parseInt(n.image)); }
+  
+  | <LET> id=<Id> <EQUAL> t1=Exp() <IN> t2=Exp() <END> { t=new ASTLet(id.image, t1, t2); }
+  | n=<Id> { t = new ASTCode(n.image); }
+  | <LPAR> t = Exp() <RPAR>
+  | <MINUS> n = <Num>{ t = new ASTNum(-Integer.parseInt(n.image)); }
+  )
+  {
+    return t;
+  }
+}
